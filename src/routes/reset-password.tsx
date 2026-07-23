@@ -1,37 +1,51 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { signupFn } from "~/lib/server-fns";
+import { useEffect, useState } from "react";
+import { resetPasswordFn } from "~/lib/server-fns";
 
-export const Route = createFileRoute("/signup")({
-  component: Signup,
+export const Route = createFileRoute("/reset-password")({
+  component: ResetPassword,
+  validateSearch: (search: Record<string, string>) => ({
+    token: search.token || "",
+  }),
 });
 
-function Signup() {
+function ResetPassword() {
   const navigate = useNavigate();
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const { token } = Route.useSearch();
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [created, setCreated] = useState(false);
+
+  // If no token in URL, show error immediately
+  const noToken = !token;
+
+  useEffect(() => {
+    if (noToken) {
+      setError("Missing reset token. Please use the link from your email.");
+    }
+  }, [noToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (newPassword !== confirmPassword) {
+      setError("Passwords do not match.");
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const result = await signupFn({ data: { email, password, name } });
-      localStorage.setItem("sensiskan_token", result.token);
-      localStorage.setItem(
-        "sensiskan_user",
-        JSON.stringify({
-          id: result.user.id,
-          email: result.user.email,
-          name: result.user.name,
-        }),
-      );
-      setCreated(true);
+      await resetPasswordFn({ data: { token, newPassword } });
+      setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
@@ -39,7 +53,7 @@ function Signup() {
     }
   };
 
-  if (created) {
+  if (success) {
     return (
       <main className="flex min-h-dvh flex-col items-center justify-center px-4">
         <div className="w-full max-w-sm text-center">
@@ -47,21 +61,21 @@ function Signup() {
             SensiScan
           </Link>
           <div className="mt-8 rounded-xl bg-green-50 p-6">
-            <span className="text-3xl">🎉</span>
+            <span className="text-3xl">✅</span>
             <h1 className="mt-3 text-xl font-bold text-green-800">
-              Account created!
+              Password reset!
             </h1>
             <p className="mt-2 text-sm text-green-700">
-              Welcome, {name}! Check your email for a welcome message with
-              tips to get started.
+              Your password has been updated. You can now log in with your new
+              password.
             </p>
           </div>
-          <button
-            onClick={() => navigate({ to: "/dashboard" })}
-            className="mt-6 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
+          <Link
+            to="/login"
+            className="mt-6 inline-block rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700"
           >
-            Continue to dashboard
-          </button>
+            Log in
+          </Link>
         </div>
       </main>
     );
@@ -74,14 +88,9 @@ function Signup() {
           <Link to="/" className="text-2xl font-bold text-indigo-600">
             SensiScan
           </Link>
-          <div className="mt-2">
-            <Link to="/pricing" className="text-sm text-indigo-600 hover:text-indigo-700">
-              View Plans
-            </Link>
-          </div>
-          <h1 className="mt-4 text-2xl font-bold">Create your account</h1>
+          <h1 className="mt-4 text-2xl font-bold">Set a new password</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Start scanning products with confidence.
+            Choose a new password for your account.
           </p>
         </div>
 
@@ -92,77 +101,72 @@ function Signup() {
             </div>
           )}
 
-          <div>
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Name
-            </label>
-            <input
-              id="name"
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="Your name"
-            />
-          </div>
+          {noToken && (
+            <div className="rounded-lg bg-yellow-50 p-3 text-sm text-yellow-700">
+              No reset token found.{" "}
+              <Link
+                to="/forgot-password"
+                className="font-medium underline hover:text-yellow-800"
+              >
+                Request a new reset link
+              </Link>
+              .
+            </div>
+          )}
 
           <div>
             <label
-              htmlFor="email"
+              htmlFor="newPassword"
               className="block text-sm font-medium text-gray-700"
             >
-              Email
+              New password
             </label>
             <input
-              id="email"
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Password
-            </label>
-            <input
-              id="password"
+              id="newPassword"
               type="password"
               required
               minLength={6}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
               className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
               placeholder="At least 6 characters"
             />
           </div>
 
+          <div>
+            <label
+              htmlFor="confirmPassword"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Confirm password
+            </label>
+            <input
+              id="confirmPassword"
+              type="password"
+              required
+              minLength={6}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              placeholder="Re-enter your new password"
+            />
+          </div>
+
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || noToken}
             className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
           >
-            {loading ? "Creating account..." : "Create account"}
+            {loading ? "Resetting..." : "Reset password"}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          Already have an account?{" "}
           <Link
             to="/login"
             className="font-medium text-indigo-600 hover:text-indigo-500"
           >
-            Log in
+            Back to log in
           </Link>
         </p>
       </div>

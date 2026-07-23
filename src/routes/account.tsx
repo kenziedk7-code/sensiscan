@@ -5,6 +5,7 @@ import {
   cancelSubscriptionFn,
   getCustomerPortalUrlFn,
   createCheckoutSessionFn,
+  sendSubscriptionConfirmationFn,
 } from "~/lib/server-fns";
 
 export const Route = createFileRoute("/account")({
@@ -68,6 +69,12 @@ function Account() {
         const params = new URLSearchParams(window.location.search);
         if (params.get("checkout") === "success") {
           setSuccess("Payment successful! Your Pro membership is now active.");
+          // Trigger subscription confirmation email
+          try {
+            await sendSubscriptionConfirmationFn({ data: { token } });
+          } catch {
+            // Non-critical, don't block the page
+          }
           // Clean URL
           window.history.replaceState({}, "", "/account");
         }

@@ -1,15 +1,14 @@
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { loginFn } from "~/lib/server-fns";
+import { requestPasswordResetFn } from "~/lib/server-fns";
 
-export const Route = createFileRoute("/login")({
-  component: Login,
+export const Route = createFileRoute("/forgot-password")({
+  component: ForgotPassword,
 });
 
-function Login() {
-  const navigate = useNavigate();
+function ForgotPassword() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -19,23 +18,52 @@ function Login() {
     setLoading(true);
 
     try {
-      const result = await loginFn({ data: { email, password } });
-      localStorage.setItem("sensiskan_token", result.token);
-      localStorage.setItem(
-        "sensiskan_user",
-        JSON.stringify({
-          id: result.user.id,
-          email: result.user.email,
-          name: result.user.name,
-        }),
-      );
-      navigate({ to: "/dashboard" });
+      await requestPasswordResetFn({ data: { email } });
+      setSent(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
       setLoading(false);
     }
   };
+
+  if (sent) {
+    return (
+      <main className="flex min-h-dvh flex-col items-center justify-center px-4">
+        <div className="w-full max-w-sm text-center">
+          <Link to="/" className="text-2xl font-bold text-indigo-600">
+            SensiScan
+          </Link>
+          <div className="mt-8 rounded-xl bg-green-50 p-6">
+            <span className="text-3xl">📧</span>
+            <h1 className="mt-3 text-xl font-bold text-green-800">
+              Check your email
+            </h1>
+            <p className="mt-2 text-sm text-green-700">
+              If an account exists for <strong>{email}</strong>, we've sent a
+              password reset link. It expires in 1 hour.
+            </p>
+          </div>
+          <div className="mt-6 space-y-3">
+            <button
+              onClick={() => {
+                setSent(false);
+                setEmail("");
+              }}
+              className="text-sm font-medium text-indigo-600 hover:text-indigo-500"
+            >
+              Try a different email
+            </button>
+          </div>
+          <p className="mt-4 text-sm text-gray-500">
+            <Link to="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
+              Back to log in
+            </Link>
+          </p>
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-dvh flex-col items-center justify-center px-4">
@@ -44,14 +72,9 @@ function Login() {
           <Link to="/" className="text-2xl font-bold text-indigo-600">
             SensiScan
           </Link>
-          <div className="mt-2">
-            <Link to="/pricing" className="text-sm text-indigo-600 hover:text-indigo-700">
-              View Plans
-            </Link>
-          </div>
-          <h1 className="mt-4 text-2xl font-bold">Welcome back</h1>
+          <h1 className="mt-4 text-2xl font-bold">Forgot your password?</h1>
           <p className="mt-1 text-sm text-gray-500">
-            Log in to your SensiScan account.
+            Enter your email and we'll send you a reset link.
           </p>
         </div>
 
@@ -80,49 +103,21 @@ function Login() {
             />
           </div>
 
-          <div>
-            <label
-              htmlFor="password"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm shadow-sm focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-              placeholder="Your password"
-            />
-          </div>
-
           <button
             type="submit"
             disabled={loading}
             className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50"
           >
-            {loading ? "Logging in..." : "Log in"}
+            {loading ? "Sending..." : "Send reset link"}
           </button>
-
-          <div className="text-right">
-            <Link
-              to="/forgot-password"
-              className="text-sm text-indigo-600 hover:text-indigo-500"
-            >
-              Forgot password?
-            </Link>
-          </div>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-500">
-          Don't have an account?{" "}
           <Link
-            to="/signup"
+            to="/login"
             className="font-medium text-indigo-600 hover:text-indigo-500"
           >
-            Sign up
+            Back to log in
           </Link>
         </p>
       </div>
