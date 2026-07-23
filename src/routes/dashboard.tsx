@@ -14,6 +14,7 @@ import {
   type DiscoveredSensitivity,
 } from "~/lib/server-fns";
 import AdBanner from "~/components/AdBanner";
+import { InstallPrompt } from "~/components/InstallPrompt";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -785,6 +786,7 @@ function Dashboard() {
           </div>
         </div>
       </div>
+      <InstallPrompt />
     </main>
   );
 }
