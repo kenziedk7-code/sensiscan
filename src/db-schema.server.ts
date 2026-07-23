@@ -107,6 +107,24 @@ interface AdEventRow {
   created_at: string;
 }
 
+interface PasswordResetTokenRow {
+  id: number;
+  user_id: number;
+  token: string;
+  expires_at: string;
+  used: boolean;
+  created_at: string;
+}
+
+interface EmailLogRow {
+  id: number;
+  user_id: number;
+  email_type: "welcome" | "reset" | "subscription";
+  to_address: string;
+  subject: string;
+  sent_at: string;
+}
+
 interface Database {
   _meta: {
     nextUserId: number;
@@ -119,6 +137,8 @@ interface Database {
     nextDiscoveredSensitivityId: number;
     nextAdId: number;
     nextAdEventId: number;
+    nextPasswordResetTokenId: number;
+    nextEmailLogId: number;
   };
   users: UserRow[];
   sessions: SessionRow[];
@@ -130,6 +150,8 @@ interface Database {
   discovered_sensitivities: DiscoveredSensitivityRow[];
   ads: AdRow[];
   ad_events: AdEventRow[];
+  password_reset_tokens: PasswordResetTokenRow[];
+  email_logs: EmailLogRow[];
 }
 
 function loadDb(): Database {
@@ -150,6 +172,8 @@ function loadDb(): Database {
         nextDiscoveredSensitivityId: 1,
         nextAdId: 1,
         nextAdEventId: 1,
+        nextPasswordResetTokenId: 1,
+        nextEmailLogId: 1,
       },
       users: [],
       sessions: [],
@@ -161,6 +185,8 @@ function loadDb(): Database {
       discovered_sensitivities: [],
       ads: [],
       ad_events: [],
+      password_reset_tokens: [],
+      email_logs: [],
     };
     writeFileSync(DB_PATH, JSON.stringify(initial, null, 2));
     return initial;
@@ -176,12 +202,16 @@ function loadDb(): Database {
   if (db._meta.nextDiscoveredSensitivityId === undefined) db._meta.nextDiscoveredSensitivityId = 1;
   if (db._meta.nextAdId === undefined) db._meta.nextAdId = 1;
   if (db._meta.nextAdEventId === undefined) db._meta.nextAdEventId = 1;
+  if (db._meta.nextPasswordResetTokenId === undefined) db._meta.nextPasswordResetTokenId = 1;
+  if (db._meta.nextEmailLogId === undefined) db._meta.nextEmailLogId = 1;
   if (!db.meal_templates) db.meal_templates = [];
   if (!db.meal_plans) db.meal_plans = [];
   if (!db.reactions) db.reactions = [];
   if (!db.discovered_sensitivities) db.discovered_sensitivities = [];
   if (!db.ads) db.ads = [];
   if (!db.ad_events) db.ad_events = [];
+  if (!db.password_reset_tokens) db.password_reset_tokens = [];
+  if (!db.email_logs) db.email_logs = [];
 
   // Migrate: add subscription fields to existing users
   for (const user of db.users) {
@@ -631,6 +661,67 @@ const store = {
       (d) => d.user_id !== userId,
     );
     this.save();
+  },
+
+  // ── Password Reset Tokens ─────────────────────────────
+
+  insertPasswordResetToken(userId: number, token: string, expiresAt: string): PasswordResetTokenRow {
+    const db = this.db;
+    const id = db._meta.nextPasswordResetTokenId++;
+    const row: PasswordResetTokenRow = {
+      id,
+      user_id: userId,
+      token,
+      expires_at: expiresAt,
+      used: false,
+      created_at: new Date().toISOString(),
+    };
+    db.password_reset_tokens.push(row);
+    this.save();
+    return row;
+  },
+
+  findPasswordResetToken(token: string): PasswordResetTokenRow | undefined {
+    return this.db.password_reset_tokens.find((t) => t.token === token);
+  },
+
+  markResetTokenUsed(id: number): boolean {
+    const row = this.db.password_reset_tokens.find((t) => t.id === id);
+    if (!row) return false;
+    row.used = true;
+    this.save();
+    return true;
+  },
+
+  updateUserPassword(userId: number, passwordHash: string): boolean {
+    const user = this.db.users.find((u) => u.id === userId);
+    if (!user) return false;
+    user.password_hash = passwordHash;
+    this.save();
+    return true;
+  },
+
+  // ── Email Logs ────────────────────────────────────────
+
+  insertEmailLog(
+    userId: number,
+    emailType: "welcome" | "reset" | "subscription",
+    toAddress: string,
+    subject: string,
+  ): EmailLogRow {
+    const db = this.db;
+    const id = db._meta.nextEmailLogId++;
+    const row: EmailLogRow = {
+      id,
+      user_id: userId,
+      email_type: emailType,
+      to_address: toAddress,
+      subject,
+      sent_at: new Date().toISOString(),
+    };
+    db.email_logs.push(row);
+    this.save();
+    return row;
   },
 
   // ── Ads ────────────────────────────────────────────

@@ -1,8 +1,10 @@
 import { createServerFn } from "@tanstack/react-start";
+import { randomBytes } from "node:crypto";
 import {
   createUser,
   loginUser,
   getUserFromToken,
+  hashPassword,
   type User,
 } from "../db-auth.server";
 import store from "../db-schema.server";
@@ -31,6 +33,19 @@ export const signupFn = createServerFn({ method: "POST" })
 
     try {
       const result = createUser(email, password, name);
+
+      // Trigger welcome email (non-blocking, don't fail signup on email error)
+      try {
+        const { sendWelcomeEmail } = await import("./email.server");
+        sendWelcomeEmail({
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.name,
+        });
+      } catch (emailErr) {
+        console.error("Failed to generate welcome email:", emailErr);
+      }
+
       return { user: result.user, token: result.token };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Signup failed";
@@ -1015,6 +1030,112 @@ export const trackAdEventFn = createServerFn({ method: "POST" })
 
     store.insertAdEvent(data.adId, data.eventType as "impression" | "click");
     return { success: true };
+  });
+
+// ── Password Reset Server Functions ───────────────────
+
+export const requestPasswordResetFn = createServerFn({ method: "POST" })
+  .validator((data: { email: string }) => data)
+  .handler(async ({ data }) => {
+    const { email } = data;
+
+    if (!email) {
+      throw new Error("Email is required");
+    }
+
+    // Find user by email
+    const user = store.findUserByEmail(email);
+
+    // Always return success to prevent email enumeration
+    if (!user) {
+      return { success: true };
+    }
+
+    try {
+      // Generate token: 32 random bytes as hex, expires in 1 hour
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+
+      store.insertPasswordResetToken(user.id, token, expiresAt);
+
+      // Generate reset email
+      const { sendPasswordResetEmail } = await import("./email.server");
+      sendPasswordResetEmail(
+        { id: user.id, email: user.email, name: user.name },
+        token,
+      );
+    } catch (err) {
+      console.error("Failed to generate password reset email:", err);
+      // Still return success to prevent enumeration
+    }
+
+    return { success: true };
+  });
+
+export const resetPasswordFn = createServerFn({ method: "POST" })
+  .validator((data: { token: string; newPassword: string }) => data)
+  .handler(async ({ data }) => {
+    const { token, newPassword } = data;
+
+    if (!token || !newPassword) {
+      throw new Error("Token and new password are required");
+    }
+
+    if (newPassword.length < 6) {
+      throw new Error("Password must be at least 6 characters");
+    }
+
+    // Look up token
+    const resetRow = store.findPasswordResetToken(token);
+    if (!resetRow) {
+      throw new Error("Invalid or expired reset link. Please request a new one.");
+    }
+
+    // Check if already used
+    if (resetRow.used) {
+      throw new Error("This reset link has already been used. Please request a new one.");
+    }
+
+    // Check if expired
+    if (new Date(resetRow.expires_at) < new Date()) {
+      throw new Error("This reset link has expired. Please request a new one.");
+    }
+
+    // Mark as used
+    store.markResetTokenUsed(resetRow.id);
+
+    // Hash new password and update
+    const newHash = hashPassword(newPassword);
+    store.updateUserPassword(resetRow.user_id, newHash);
+
+    return { success: true };
+  });
+
+// ── Subscription Email Confirmation ───────────────────
+
+export const sendSubscriptionConfirmationFn = createServerFn({ method: "POST" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const user = getUserFromToken(data.token);
+    if (!user) throw new Error("Authentication required");
+
+    const userRow = store.findUserById(user.id);
+    if (!userRow || userRow.subscription_status !== "active") {
+      return { sent: false, reason: "Subscription not active" };
+    }
+
+    try {
+      const { sendSubscriptionConfirmation } = await import("./email.server");
+      sendSubscriptionConfirmation({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+      });
+      return { sent: true };
+    } catch (err) {
+      console.error("Failed to generate subscription confirmation email:", err);
+      return { sent: false, reason: "Email generation failed" };
+    }
   });
 
 // ── Stripe Subscription Server Functions ──────────────
