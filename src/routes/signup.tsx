@@ -45,6 +45,11 @@ function Signup() {
           <Link to="/" className="text-2xl font-bold text-indigo-600">
             SensiScan
           </Link>
+          <div className="mt-2">
+            <Link to="/pricing" className="text-sm text-indigo-600 hover:text-indigo-700">
+              View Plans
+            </Link>
+          </div>
           <h1 className="mt-4 text-2xl font-bold">Create your account</h1>
           <p className="mt-1 text-sm text-gray-500">
             Start scanning products with confidence.

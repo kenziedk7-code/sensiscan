@@ -1,6 +1,6 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
-import { scanProductFn, addSensitivityFn } from "~/lib/server-fns";
+import { scanProductFn, addSensitivityFn, getSubscriptionStatusFn } from "~/lib/server-fns";
 import AdBanner from "~/components/AdBanner";
 
 export const Route = createFileRoute("/scan")({
@@ -64,6 +64,10 @@ function Scan() {
   // Quick-add sensitivity state
   const [addingIngredient, setAddingIngredient] = useState<string | null>(null);
 
+  // Subscription state
+  const [isPro, setIsPro] = useState(false);
+  const [scansRemaining, setScansRemaining] = useState(10);
+
   // Auth check
   useEffect(() => {
     if (typeof window !== "undefined" && !user) {
@@ -94,6 +98,17 @@ function Scan() {
       stopCamera();
     };
   }, []);
+
+  // Load subscription status
+  useEffect(() => {
+    if (!user) return;
+    getSubscriptionStatusFn({ data: { token: getToken() } })
+      .then((r) => {
+        setIsPro(r.isPro);
+        setScansRemaining(r.scans_remaining);
+      })
+      .catch(() => {});
+  }, [user]);
 
   const stopCamera = useCallback(() => {
     if (animFrameRef.current) {
@@ -182,6 +197,11 @@ function Scan() {
         navigate({ to: "/login" });
         return;
       }
+      if (err instanceof Error && err.message.includes("UPGRADE_REQUIRED")) {
+        setError(err.message.replace("UPGRADE_REQUIRED: ", ""));
+        setScansRemaining(0);
+        return;
+      }
       setError(err instanceof Error ? err.message : "Scan failed. Please try again.");
     } finally {
       setScanning(false);
@@ -243,6 +263,26 @@ function Scan() {
             >
               Dashboard
             </Link>
+            <Link
+              to="/meals"
+              className="text-sm text-gray-600 hover:text-indigo-600"
+            >
+              🍽️ Meals
+            </Link>
+            <Link
+              to="/account"
+              className="text-sm text-gray-600 hover:text-indigo-600"
+            >
+              Account
+            </Link>
+            {!isPro && (
+              <Link
+                to="/pricing"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Upgrade 🔒
+              </Link>
+            )}
             <span className="text-sm text-gray-400">{user.name}</span>
           </div>
         </div>
@@ -253,6 +293,39 @@ function Scan() {
         <p className="mt-1 text-sm text-gray-500">
           Enter a barcode or use your camera to scan a product.
         </p>
+
+        {/* Free tier scan counter */}
+        {!isPro && (
+          <div className="mt-3 rounded-lg bg-amber-50 border border-amber-200 px-3 py-2 text-sm">
+            <span className="font-medium text-amber-700">
+              {scansRemaining > 0
+                ? `${scansRemaining} free scan${scansRemaining !== 1 ? "s" : ""} remaining`
+                : "No free scans remaining"}
+            </span>
+            <span className="text-amber-600 ml-2">
+              —{" "}
+              <Link to="/pricing" className="underline font-medium">
+                Upgrade for unlimited
+              </Link>
+            </span>
+          </div>
+        )}
+
+        {/* Upgrade required */}
+        {!isPro && scansRemaining <= 0 && (
+          <div className="mt-4 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-6 text-white shadow-md text-center">
+            <h2 className="text-xl font-bold">You're out of free scans!</h2>
+            <p className="mt-2 text-indigo-100">
+              Upgrade to Pro for unlimited barcode scans, meal plans, and reaction tracking.
+            </p>
+            <Link
+              to="/pricing"
+              className="mt-4 inline-block rounded-lg bg-white px-6 py-2.5 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+            >
+              Upgrade — $9.99/month
+            </Link>
+          </div>
+        )}
 
         {/* Error */}
         {error && (

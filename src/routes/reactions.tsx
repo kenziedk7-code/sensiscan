@@ -9,6 +9,7 @@ import {
   getDiscoveredSensitivitiesFn,
   confirmDiscoveredFn,
   dismissDiscoveredFn,
+  getSubscriptionStatusFn,
   type DiscoveredSensitivity,
 } from "~/lib/server-fns";
 
@@ -125,6 +126,10 @@ function Reactions() {
   // Week strip
   const [weekOffset, setWeekOffset] = useState(0);
 
+  // Subscription state
+  const [isPro, setIsPro] = useState(false);
+  const [subLoading, setSubLoading] = useState(true);
+
   useEffect(() => {
     if (typeof window !== "undefined" && !user) {
       navigate({ to: "/login" });
@@ -137,6 +142,14 @@ function Reactions() {
     loadReactionDates();
     loadDiscovered();
   }, [selectedDate]);
+
+  // Load subscription
+  useEffect(() => {
+    if (!user) return;
+    getSubscriptionStatusFn({ data: { token: getToken() } })
+      .then((r) => { setIsPro(r.isPro); setSubLoading(false); })
+      .catch(() => { setSubLoading(false); });
+  }, [user]);
 
   async function loadReactions() {
     try {
@@ -407,6 +420,20 @@ function Reactions() {
             >
               📱 Scan
             </Link>
+            <Link
+              to="/account"
+              className="text-sm text-gray-600 hover:text-indigo-600"
+            >
+              Account
+            </Link>
+            {!isPro && (
+              <Link
+                to="/pricing"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Upgrade 🔒
+              </Link>
+            )}
             <span className="text-sm text-gray-600">{user.name}</span>
             <button
               onClick={handleLogout}
@@ -425,6 +452,26 @@ function Reactions() {
             Track daily reactions to discover hidden sensitivities.
           </p>
         </div>
+
+        {/* Upgrade prompt for free users */}
+        {!subLoading && !isPro && (
+          <div className="mb-6 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white shadow-md text-center">
+            <div className="text-4xl mb-3">🔒</div>
+            <h2 className="text-xl font-bold">Reaction Tracking is Pro-only</h2>
+            <p className="mt-2 text-indigo-100 max-w-md mx-auto">
+              Upgrade to SensiScan Pro to log food and skincare reactions and let our engine discover hidden sensitivity patterns.
+            </p>
+            <Link
+              to="/pricing"
+              className="mt-5 inline-block rounded-lg bg-white px-6 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+            >
+              Upgrade to Pro — $9.99/month
+            </Link>
+          </div>
+        )}
+
+        {/* Gated content for Pro users */}
+        {(subLoading || isPro) && (<>
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">
@@ -942,6 +989,7 @@ function Reactions() {
             </div>
           </div>
         )}
+        </>)}
       </div>
     </main>
   );

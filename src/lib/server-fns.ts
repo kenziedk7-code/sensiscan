@@ -227,6 +227,18 @@ export const scanProductFn = createServerFn({ method: "POST" })
       throw new Error("Valid barcode number is required");
     }
 
+    // Feature gate: check subscription or scans remaining
+    const userRow = store.findUserById(user.id);
+    if (!userRow) throw new Error("User not found");
+    if (userRow.subscription_status !== "active" && userRow.scans_remaining <= 0) {
+      throw new Error("UPGRADE_REQUIRED: You've used all 10 free scans. Upgrade to Pro for unlimited scans.");
+    }
+
+    // Decrement scan count for free users
+    if (userRow.subscription_status !== "active") {
+      store.decrementScans(user.id);
+    }
+
     // Look up product
     const lookup = await lookupProduct(barcode);
 
@@ -1003,4 +1015,74 @@ export const trackAdEventFn = createServerFn({ method: "POST" })
 
     store.insertAdEvent(data.adId, data.eventType as "impression" | "click");
     return { success: true };
+  });
+
+// ── Stripe Subscription Server Functions ──────────────
+
+export const getSubscriptionStatusFn = createServerFn({ method: "GET" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const user = getUserFromToken(data.token);
+    if (!user) throw new Error("Authentication required");
+
+    const { getSubscription } = await import("./stripe.server");
+    const sub = await getSubscription(user.id);
+
+    const userRow = store.findUserById(user.id);
+    const scansRemaining = userRow?.scans_remaining ?? 0;
+
+    return {
+      ...sub,
+      scans_remaining: scansRemaining,
+      isPro: sub.status === "active",
+    };
+  });
+
+export const createCheckoutSessionFn = createServerFn({ method: "POST" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const user = getUserFromToken(data.token);
+    if (!user) throw new Error("Authentication required");
+
+    const { createCheckoutSession } = await import("./stripe.server");
+
+    // Use the request origin for success/cancel URLs
+    const origin = "https://1556684c19626204e0fe9ccd77d278af.ctonew.app";
+
+    const url = await createCheckoutSession(
+      user.id,
+      user.email,
+      `${origin}/account?checkout=success`,
+      `${origin}/pricing?checkout=canceled`,
+    );
+
+    return { url };
+  });
+
+export const cancelSubscriptionFn = createServerFn({ method: "POST" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const user = getUserFromToken(data.token);
+    if (!user) throw new Error("Authentication required");
+
+    const { cancelSubscription } = await import("./stripe.server");
+    const result = await cancelSubscription(user.id);
+
+    return result;
+  });
+
+export const getCustomerPortalUrlFn = createServerFn({ method: "POST" })
+  .validator((data: { token: string }) => data)
+  .handler(async ({ data }) => {
+    const user = getUserFromToken(data.token);
+    if (!user) throw new Error("Authentication required");
+
+    const { createCustomerPortalSession } = await import("./stripe.server");
+    const origin = "https://1556684c19626204e0fe9ccd77d278af.ctonew.app";
+    const url = await createCustomerPortalSession(
+      user.id,
+      `${origin}/account`,
+    );
+
+    return { url };
   });

@@ -44,6 +44,12 @@ function Home() {
             ) : (
               <>
                 <Link
+                  to="/pricing"
+                  className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100"
+                >
+                  Pricing
+                </Link>
+                <Link
                   to="/login"
                   className="rounded-lg px-4 py-2 font-medium text-gray-700 hover:bg-gray-100"
                 >
@@ -53,7 +59,7 @@ function Home() {
                   to="/signup"
                   className="rounded-lg bg-indigo-600 px-4 py-2 font-medium text-white hover:bg-indigo-700"
                 >
-                  Get Started
+                  Start Free
                 </Link>
               </>
             )}
@@ -85,12 +91,20 @@ function Home() {
               Go to Dashboard
             </Link>
           ) : (
-            <Link
-              to="/signup"
-              className="rounded-xl bg-indigo-600 px-8 py-3 text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
-            >
-              Get Started Free
-            </Link>
+            <>
+              <Link
+                to="/signup"
+                className="rounded-xl bg-indigo-600 px-8 py-3 text-lg font-semibold text-white shadow-sm hover:bg-indigo-700"
+              >
+                Start Free — 10 Scans Included
+              </Link>
+              <Link
+                to="/pricing"
+                className="rounded-xl border border-indigo-300 px-8 py-3 text-lg font-semibold text-indigo-600 hover:bg-indigo-50"
+              >
+                View Plans
+              </Link>
+            </>
           )}
         </div>
 
@@ -126,6 +140,8 @@ function Home() {
       {/* Footer */}
       <footer className="border-t border-gray-200 bg-white py-6 text-center text-sm text-gray-400">
         &copy; {new Date().getFullYear()} SensiScan. All rights reserved.
+        <span className="mx-2">·</span>
+        <span>Powered by Stripe</span>
       </footer>
     </main>
   );
