@@ -16,8 +16,9 @@ export async function getOrCreateProductAndPrice(): Promise<string> {
   if (cachedPriceId) return cachedPriceId;
 
   // Check if the price ID is persisted in the DB
-  if (store.db._meta && (store.db._meta as any)[STRIPE_PRICE_ID_CACHE_KEY]) {
-    cachedPriceId = (store.db._meta as any)[STRIPE_PRICE_ID_CACHE_KEY] as string;
+  const persistedPriceId = store.getKv(STRIPE_PRICE_ID_CACHE_KEY);
+  if (persistedPriceId) {
+    cachedPriceId = persistedPriceId;
     return cachedPriceId;
   }
 
@@ -63,7 +64,7 @@ export async function getOrCreateProductAndPrice(): Promise<string> {
   }
 
   cachedPriceId = price.id;
-  (store.db._meta as any)[STRIPE_PRICE_ID_CACHE_KEY] = price.id;
+  store.setKv(STRIPE_PRICE_ID_CACHE_KEY, price.id);
   store.save();
 
   return price.id;
