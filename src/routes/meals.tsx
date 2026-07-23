@@ -4,6 +4,7 @@ import {
   generateMealPlanFn,
   getMealPlanFn,
   regenerateMealFn,
+  getSubscriptionStatusFn,
   type MealTemplate,
   type MealPlanEntry,
 } from "~/lib/server-fns";
@@ -83,6 +84,10 @@ function Meals() {
   const [hasGenerated, setHasGenerated] = useState(false);
   const [regeneratingId, setRegeneratingId] = useState<number | null>(null);
 
+  // Subscription state
+  const [isPro, setIsPro] = useState(false);
+  const [subLoading, setSubLoading] = useState(true);
+
   // Auth check
   useEffect(() => {
     if (typeof window !== "undefined" && !user) {
@@ -115,6 +120,14 @@ function Meals() {
   useEffect(() => {
     if (user) loadMeals(selectedDate);
   }, [user, selectedDate, loadMeals]);
+
+  // Load subscription
+  useEffect(() => {
+    if (!user) return;
+    getSubscriptionStatusFn({ data: { token: getToken() } })
+      .then((r) => { setIsPro(r.isPro); setSubLoading(false); })
+      .catch(() => { setSubLoading(false); });
+  }, [user]);
 
   const handleGenerate = async () => {
     if (!user) return;
@@ -176,6 +189,20 @@ function Meals() {
             >
               Dashboard
             </Link>
+            <Link
+              to="/account"
+              className="text-sm text-gray-600 hover:text-indigo-600"
+            >
+              Account
+            </Link>
+            {!isPro && (
+              <Link
+                to="/pricing"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Upgrade 🔒
+              </Link>
+            )}
             <span className="text-sm text-gray-400">{user.name}</span>
           </div>
         </div>
@@ -242,8 +269,25 @@ function Meals() {
           </div>
         )}
 
+        {/* Upgrade prompt for free users */}
+        {!subLoading && !isPro && (
+          <div className="mt-8 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 p-8 text-white shadow-md text-center">
+            <div className="text-4xl mb-3">🔒</div>
+            <h2 className="text-xl font-bold">Meal Plans are Pro-only</h2>
+            <p className="mt-2 text-indigo-100 max-w-md mx-auto">
+              Upgrade to SensiScan Pro to get personalized weekly meal plans that automatically exclude every ingredient on your sensitivity list.
+            </p>
+            <Link
+              to="/pricing"
+              className="mt-5 inline-block rounded-lg bg-white px-6 py-3 text-sm font-semibold text-indigo-600 hover:bg-indigo-50"
+            >
+              Upgrade to Pro — $9.99/month
+            </Link>
+          </div>
+        )}
+
         {/* Day View */}
-        {!hasGenerated && !loading ? (
+        {(subLoading || isPro) && (!hasGenerated && !loading ? (
           /* Empty state */
           <div className="mt-16 rounded-2xl border-2 border-dashed border-gray-200 p-12 text-center">
             <div className="text-5xl">🍽️</div>
@@ -339,7 +383,7 @@ function Meals() {
               })
             )}
           </div>
-        )}
+        ))}
 
         {/* Ad placement: bottom of meals page */}
         {hasGenerated && (

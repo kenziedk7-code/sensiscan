@@ -8,6 +8,7 @@ import {
   getMealPlanFn,
   getReactionsFn,
   getDiscoveredSensitivitiesFn,
+  getSubscriptionStatusFn,
   type SensitivityRow,
   type MealPlanEntry,
   type DiscoveredSensitivity,
@@ -89,6 +90,11 @@ function Dashboard() {
   const [discovered, setDiscovered] = useState<DiscoveredSensitivity[]>([]);
   const [discoveredLoading, setDiscoveredLoading] = useState(true);
 
+  // Subscription state
+  const [isPro, setIsPro] = useState(false);
+  const [scansRemaining, setScansRemaining] = useState(10);
+  const [subLoading, setSubLoading] = useState(true);
+
   useEffect(() => {
     if (typeof window !== "undefined" && !user) {
       navigate({ to: "/login" });
@@ -102,6 +108,7 @@ function Dashboard() {
     loadTodayMeals();
     loadTodayReactions();
     loadDiscovered();
+    loadSubscription();
   }, [user]);
 
   async function loadSensitivities() {
@@ -176,6 +183,20 @@ function Dashboard() {
       // Silently fail
     } finally {
       setDiscoveredLoading(false);
+    }
+  }
+
+  async function loadSubscription() {
+    try {
+      setSubLoading(true);
+      const token = getToken();
+      const result = await getSubscriptionStatusFn({ data: { token } });
+      setIsPro(result.isPro);
+      setScansRemaining(result.scans_remaining);
+    } catch {
+      // Silently fail
+    } finally {
+      setSubLoading(false);
     }
   }
 
@@ -277,11 +298,25 @@ function Dashboard() {
             >
               📱 Scan
             </Link>
+            {!isPro && (
+              <Link
+                to="/pricing"
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
+              >
+                Upgrade 🔒
+              </Link>
+            )}
             <Link
               to="/meals"
               className="text-sm text-gray-600 hover:text-indigo-600"
             >
               🍽️ Meals
+            </Link>
+            <Link
+              to="/account"
+              className="text-sm text-gray-600 hover:text-indigo-600"
+            >
+              Account
             </Link>
             <span className="text-sm text-gray-600">{user.name}</span>
             <button
@@ -303,6 +338,43 @@ function Dashboard() {
             Manage your sensitivity profile and view your personalized meal plan.
           </p>
         </div>
+
+        {/* Free Tier Banner */}
+        {!subLoading && !isPro && (
+          <div className="mb-6 rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 p-5 text-white shadow-md">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <p className="font-semibold text-lg">
+                  {scansRemaining > 0
+                    ? `You have ${scansRemaining} free scan${scansRemaining !== 1 ? "s" : ""} remaining`
+                    : "You're out of free scans!"}
+                </p>
+                <p className="text-sm text-indigo-100 mt-0.5">
+                  Upgrade to Pro for unlimited scans, meal plans, and reaction tracking.
+                </p>
+              </div>
+              <Link
+                to="/pricing"
+                className="rounded-lg bg-white px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors shrink-0"
+              >
+                Upgrade — $9.99/mo
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Pro Badge */}
+        {!subLoading && isPro && (
+          <div className="mb-6 rounded-xl bg-green-50 border border-green-200 p-4 shadow-sm">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">✅</span>
+              <div>
+                <p className="font-semibold text-green-800">Pro Member</p>
+                <p className="text-sm text-green-600">Unlimited scans, meal plans, and reaction tracking.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">

@@ -11,6 +11,10 @@ interface UserRow {
   email: string;
   password_hash: string;
   name: string;
+  stripe_customer_id: string | null;
+  subscription_status: "active" | "canceled" | "past_due" | "none";
+  subscription_end_date: string | null;
+  scans_remaining: number;
   created_at: string;
 }
 
@@ -179,6 +183,14 @@ function loadDb(): Database {
   if (!db.ads) db.ads = [];
   if (!db.ad_events) db.ad_events = [];
 
+  // Migrate: add subscription fields to existing users
+  for (const user of db.users) {
+    if (user.stripe_customer_id === undefined) user.stripe_customer_id = null;
+    if (user.subscription_status === undefined) user.subscription_status = "none";
+    if (user.subscription_end_date === undefined) user.subscription_end_date = null;
+    if (user.scans_remaining === undefined) user.scans_remaining = 10;
+  }
+
   return db;
 }
 
@@ -217,6 +229,10 @@ const store = {
       email,
       password_hash: passwordHash,
       name,
+      stripe_customer_id: null,
+      subscription_status: "none",
+      subscription_end_date: null,
+      scans_remaining: 10,
       created_at: new Date().toISOString(),
     };
     db.users.push(user);
@@ -230,6 +246,46 @@ const store = {
 
   findUserById(id: number): UserRow | undefined {
     return this.db.users.find((u) => u.id === id);
+  },
+
+  updateUserSubscription(
+    userId: number,
+    data: {
+      stripe_customer_id?: string;
+      subscription_status?: "active" | "canceled" | "past_due" | "none";
+      subscription_end_date?: string | null;
+      scans_remaining?: number;
+    },
+  ): UserRow | undefined {
+    const user = this.db.users.find((u) => u.id === userId);
+    if (!user) return undefined;
+    if (data.stripe_customer_id !== undefined) user.stripe_customer_id = data.stripe_customer_id;
+    if (data.subscription_status !== undefined) user.subscription_status = data.subscription_status;
+    if (data.subscription_end_date !== undefined) user.subscription_end_date = data.subscription_end_date;
+    if (data.scans_remaining !== undefined) user.scans_remaining = data.scans_remaining;
+    this.save();
+    return user;
+  },
+
+  decrementScans(userId: number): { scans_remaining: number } {
+    const user = this.db.users.find((u) => u.id === userId);
+    if (!user) throw new Error("User not found");
+    if (user.scans_remaining > 0) {
+      user.scans_remaining--;
+      this.save();
+    }
+    return { scans_remaining: user.scans_remaining };
+  },
+
+  resetScans(userId: number): void {
+    const user = this.db.users.find((u) => u.id === userId);
+    if (!user) throw new Error("User not found");
+    user.scans_remaining = 999999; // effectively unlimited
+    this.save();
+  },
+
+  findUserByStripeCustomerId(customerId: string): UserRow | undefined {
+    return this.db.users.find((u) => u.stripe_customer_id === customerId);
   },
 
   // Sessions
