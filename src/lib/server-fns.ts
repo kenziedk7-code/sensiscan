@@ -37,13 +37,13 @@ export const signupFn = createServerFn({ method: "POST" })
       // Trigger welcome email (non-blocking, don't fail signup on email error)
       try {
         const { sendWelcomeEmail } = await import("./email.server");
-        sendWelcomeEmail({
+        await sendWelcomeEmail({
           id: result.user.id,
           email: result.user.email,
           name: result.user.name,
         });
       } catch (emailErr) {
-        console.error("Failed to generate welcome email:", emailErr);
+        console.error("Failed to send welcome email:", emailErr);
       }
 
       return { user: result.user, token: result.token };
@@ -1060,7 +1060,7 @@ export const requestPasswordResetFn = createServerFn({ method: "POST" })
 
       // Generate reset email
       const { sendPasswordResetEmail } = await import("./email.server");
-      sendPasswordResetEmail(
+      await sendPasswordResetEmail(
         { id: user.id, email: user.email, name: user.name },
         token,
       );
@@ -1126,15 +1126,15 @@ export const sendSubscriptionConfirmationFn = createServerFn({ method: "POST" })
 
     try {
       const { sendSubscriptionConfirmation } = await import("./email.server");
-      sendSubscriptionConfirmation({
+      await sendSubscriptionConfirmation({
         id: user.id,
         email: user.email,
         name: user.name,
       });
       return { sent: true };
     } catch (err) {
-      console.error("Failed to generate subscription confirmation email:", err);
-      return { sent: false, reason: "Email generation failed" };
+      console.error("Failed to send subscription confirmation email:", err);
+      return { sent: false, reason: "Email send failed" };
     }
   });
 

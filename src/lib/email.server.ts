@@ -1,7 +1,23 @@
+import { Resend } from "resend";
 import store from "../db-schema.server";
 
-const FROM_ADDRESS = "sensiscan-c4c93ff7@ctomail.io";
+const FROM_ADDRESS = "SensiScan <sensiscan-c4c93ff7@ctomail.io>";
 const APP_URL = "https://1556684c19626204e0fe9ccd77d278af.ctonew.app";
+
+// Initialize Resend only if the API key is configured
+let resend: Resend | null = null;
+function getResend(): Resend | null {
+  if (resend) return resend;
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn(
+      "[EMAIL] RESEND_API_KEY not configured — emails will be logged but not sent",
+    );
+    return null;
+  }
+  resend = new Resend(apiKey);
+  return resend;
+}
 
 interface EmailPayload {
   to: string;
@@ -20,11 +36,38 @@ function logEmail(
   );
 }
 
-export function sendWelcomeEmail(user: {
+async function sendViaResend(
+  payload: EmailPayload,
+): Promise<boolean> {
+  const client = getResend();
+  if (!client) return false;
+
+  try {
+    const { data, error } = await client.emails.send({
+      from: FROM_ADDRESS,
+      to: payload.to,
+      subject: payload.subject,
+      text: payload.body,
+    });
+
+    if (error) {
+      console.error(`[EMAIL] Resend API error:`, error);
+      return false;
+    }
+
+    console.log(`[EMAIL] Sent via Resend, id=${data?.id ?? "unknown"}`);
+    return true;
+  } catch (err) {
+    console.error(`[EMAIL] Failed to send via Resend:`, err);
+    return false;
+  }
+}
+
+export async function sendWelcomeEmail(user: {
   id: number;
   email: string;
   name: string;
-}): EmailPayload {
+}): Promise<EmailPayload> {
   const subject = "Welcome to SensiScan! 🎉";
   const body = `Hi ${user.name},
 
@@ -49,13 +92,19 @@ The SensiScan Team`;
 
   const payload: EmailPayload = { to: user.email, subject, body };
   logEmail(user.id, "welcome", payload);
+
+  // Attempt to send via Resend (non-blocking, logged on failure)
+  sendViaResend(payload).catch((err) =>
+    console.error("[EMAIL] Welcome email Resend send failed:", err),
+  );
+
   return payload;
 }
 
-export function sendPasswordResetEmail(
+export async function sendPasswordResetEmail(
   user: { id: number; email: string; name: string },
   resetToken: string,
-): EmailPayload {
+): Promise<EmailPayload> {
   const subject = "Reset your SensiScan password";
   const resetLink = `${APP_URL}/reset-password?token=${resetToken}`;
   const body = `Hi ${user.name},
@@ -73,14 +122,20 @@ The SensiScan Team`;
 
   const payload: EmailPayload = { to: user.email, subject, body };
   logEmail(user.id, "reset", payload);
+
+  // Attempt to send via Resend (non-blocking, logged on failure)
+  sendViaResend(payload).catch((err) =>
+    console.error("[EMAIL] Password reset email Resend send failed:", err),
+  );
+
   return payload;
 }
 
-export function sendSubscriptionConfirmation(user: {
+export async function sendSubscriptionConfirmation(user: {
   id: number;
   email: string;
   name: string;
-}): EmailPayload {
+}): Promise<EmailPayload> {
   const subject = "Your SensiScan Pro membership is active! 🔒";
   const body = `Hi ${user.name},
 
@@ -102,5 +157,14 @@ The SensiScan Team`;
 
   const payload: EmailPayload = { to: user.email, subject, body };
   logEmail(user.id, "subscription", payload);
+
+  // Attempt to send via Resend (non-blocking, logged on failure)
+  sendViaResend(payload).catch((err) =>
+    console.error(
+      "[EMAIL] Subscription confirmation Resend send failed:",
+      err,
+    ),
+  );
+
   return payload;
 }
