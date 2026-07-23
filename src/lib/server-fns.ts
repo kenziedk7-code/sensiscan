@@ -326,9 +326,8 @@ export const getScanHistoryFn = createServerFn({ method: "GET" })
     const user = getUserFromToken(data.token);
     if (!user) throw new Error("Authentication required");
 
-    const db = store.db;
-    const scans = db.scan_history
-      .filter((s) => s.user_id === user.id)
+    const scans = store.scan_history_raw
+      .filter((s: any) => s.user_id === user.id)
       .sort(
         (a, b) =>
           new Date(b.scanned_at).getTime() - new Date(a.scanned_at).getTime(),
