@@ -14,8 +14,37 @@ export const Route = createRootRoute({
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "SensiScan — Shop with confidence" },
+      { name: "theme-color", content: "#4f46e5" },
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      {
+        name: "apple-mobile-web-app-status-bar-style",
+        content: "black-translucent",
+      },
+      { name: "apple-mobile-web-app-title", content: "SensiScan" },
     ],
-    links: [{ rel: "stylesheet", href: appCss }],
+    links: [
+      { rel: "stylesheet", href: appCss },
+      { rel: "manifest", href: "/manifest.json" },
+      { rel: "apple-touch-icon", href: "/icons/icon-192.png" },
+    ],
+    scripts: [
+      {
+        children: `
+          if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => {
+              navigator.serviceWorker.register("/sw.js").then(
+                (registration) => {
+                  console.log("SW registered:", registration.scope);
+                },
+                (err) => {
+                  console.log("SW registration failed:", err);
+                }
+              );
+            });
+          }
+        `,
+      },
+    ],
   }),
   notFoundComponent: () => (
     <div className="flex min-h-dvh items-center justify-center">
